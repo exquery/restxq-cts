@@ -33,6 +33,7 @@ import scala.util.{Failure, Success, Try}
 import scalax.file.{PathSet, Path}
 import dispatch._, Defaults._
 import com.ning.http.util.Base64
+import scala.xml.Elem
 
 
 /**
@@ -78,13 +79,18 @@ object RestXqCts extends App {
     val queries = getRequiredQueries()
     val credentials = config.username.map((_, config.password.get))
 
-    queries.map(storeQuery(config.restxqCtsUri.get, credentials, _))
+    val results : Iterable[Future[Elem]] = queries.map(storeQuery(config.restxqCtsUri.get, credentials, _))
+
+    val elems = for(result <- results)
+      yield result()
+
+    println(elems)
 
     -1 //TODO
   }
 
   private def getRequiredQueries(): PathSet[Path] = {
-    val url = getClass().getResource("cts.xquery")
+    val url = getClass().getResource("/cts.xquery")
     val maybeParent = Path(url.toURI).flatMap(_.parent)
     maybeParent.map {
       parent =>
@@ -92,7 +98,7 @@ object RestXqCts extends App {
     }.getOrElse(PathSet())
   }
 
-  private def storeQuery(restxqCtsUri: URI, credentials: Option[(String, String)], query: Path) = {
+  private def storeQuery(restxqCtsUri: URI, credentials: Option[(String, String)], query: Path) : Future[Elem] = {
     val server = url(restxqCtsUri.toString) / "cts" / "store" / query.name
     val req = credentials match {
       case Some((user, pass)) =>
@@ -103,7 +109,7 @@ object RestXqCts extends App {
     }
 
     val putted = req <<< query.fileOption.get
-    val result = Http(putted OK as.xml.Elem) //TODO show success/failure?
+    Http(putted OK as.xml.Elem) //TODO show success/failure?
   }
 
   /**

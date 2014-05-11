@@ -51,9 +51,9 @@ declare
     %restxq:path("/cts/store/{$name}")
     %restxq:consumes("application/xquery")
     %restxq:produces("application/xml")
-function rxcts:store-query($name, $body) as document-node(element(restxq:response)) {
+function rxcts:store-query($name, $body as xs:base64Binary) as document-node(element(restxq:response)) {
     let $path :=
-        if(not(rxcts:collection-available(rxcts:collection)))then
+        if(not(rxcts:collection-available($rxcts:collection)))then
             rxcts:create-collection($rxcts:collection)
         else
             $rxcts:collection
@@ -116,7 +116,7 @@ function rxcts:create-collection($root as xs:string, $paths as xs:string+) as xs
                 if(not(rxcts:collection-available($current)))then
                     xmldb:create-collection($root, $paths[1])
                 else(),
-                rxcts:create-collection($current, subsequence($parts, 2))
+                rxcts:create-collection($current, subsequence($paths, 2))
             )
 };
 
