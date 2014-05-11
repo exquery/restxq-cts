@@ -32,6 +32,7 @@ import resource._
 import scala.util.{Failure, Success, Try}
 import scalax.file.{PathSet, Path}
 import dispatch._, Defaults._
+import com.ning.http.util.Base64
 
 
 /**
@@ -44,7 +45,7 @@ import dispatch._, Defaults._
  */
 object RestXqCts extends App {
 
-  case class Config(restxqCtsUri: Option[URI] = None)
+  case class Config(restxqCtsUri: Option[URI] = None, username: Option[String] = None, password: Option[String] = None)
 
   val parser = new scopt.OptionParser[Config]("cts") {
     head("RESTXQ Compatibility Test Suite", getShortVersion())
@@ -55,6 +56,8 @@ object RestXqCts extends App {
       case Failure(t) =>
         failure(s"Invalid URI: $x")
     }} action { (x, c) => c.copy(restxqCtsUri = Some(URI.create(x))) } text("The URI of the RESTXQ end-point")
+    opt[String]('u', "user") action { (x, c) => c.copy(username = Some(x)) } text("The username for connecting to the server")
+    opt[String]('p', "pass") action { (x, c) => c.copy(password = Some(x)) } text("The password for connecting to the server")
   }
 
   //parse the command line arguments
@@ -73,7 +76,9 @@ object RestXqCts extends App {
    */
   private def runCts(config: Config) : Int = {
     val queries = getRequiredQueries()
-    queries.map(storeQuery(config.restxqCtsUri.get, _))
+    val credentials = config.username.map((_, config.password.get))
+
+    queries.map(storeQuery(config.restxqCtsUri.get, credentials, _))
 
     -1 //TODO
   }
@@ -87,11 +92,18 @@ object RestXqCts extends App {
     }.getOrElse(PathSet())
   }
 
-  private def storeQuery(restxqCtsUri: URI, query: Path) = {
+  private def storeQuery(restxqCtsUri: URI, credentials: Option[(String, String)], query: Path) = {
     val server = url(restxqCtsUri.toString) / "cts" / "store" / query.name
-    val req = server.PUT.setContentType("application/xquery", "UTF-8")
+    val req = credentials match {
+      case Some((user, pass)) =>
+        val auth = s"Basic ${Base64.encode(s"$user:$pass".getBytes)}"
+        server.PUT.setContentType("application/xquery", "UTF-8").addParameter("Authorization", auth)
+      case None =>
+        server.PUT.setContentType("application/xquery", "UTF-8")
+    }
+
     val putted = req <<< query.fileOption.get
-    val result = Http(putted OK as.xml.Elem)
+    val result = Http(putted OK as.xml.Elem) //TODO show success/failure?
   }
 
   /**
