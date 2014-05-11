@@ -132,7 +132,11 @@ function rxcts:store($path, $body) as xs:string? {
     let $coll := replace($path, "(.*)/", "$1")
     let $res := replace($path, "(.*/).*", "")
     return
-        xmldb:store($coll, $res, $body, "application/octet-stream")
+        let $stored := xmldb:store($coll, $res, $body, "application/octet-stream")
+        return
+            let $null := sm:chmod(xs:anyURI($stored), "rwxrwxrwx")
+            return
+                $stored
 };
 
 declare
